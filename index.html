@@ -62,6 +62,7 @@ nav button.on{color:var(--accent)}
 .phead b{font-size:18px}
 a.btn{display:inline-block;text-align:center;text-decoration:none}
 .scanbar{display:flex;gap:10px;align-items:center}
+.appver{text-align:center;color:var(--mute);font-size:12px;margin:22px 0 8px;display:flex;flex-direction:column;gap:3px}.appver div:first-child{font:600 13px var(--mono);color:var(--fg)}
 .qbar{display:flex;gap:8px;align-items:stretch}.qbar .search{flex:1;min-width:0}
 .datebtn{position:relative;flex:none;width:46px;border:1px solid var(--line);border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)}
 .datebtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;pointer-events:none}
@@ -172,6 +173,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
+const APP_VERSION='v24'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -942,7 +944,8 @@ function renderSettings(){
   <div class="card"><p><b>Pilot rehberinden fotoğraf ve telefon</b></p><p class="meta" style="margin:0 0 10px">Şirketin Cockpit rehber dosyasını (.html) seç. Pilotlar listende olan isimlere fotoğraf, telefon ve eksikse sicil eklenir; yeni kişi eklenmez. Dosya büyük olduğu için bilgisayarda yapman daha hızlı olur.</p>
   <input type="file" id="ckf" accept=".html,.htm,text/html" hidden><button class="btn ghost" id="ckBtn" style="width:100%">Rehber dosyasını seç</button><p class="meta" id="ckRes" style="margin:10px 0 0" hidden></p></div>
   <div class="card"><p><b>Excel'e aktar</b></p><button class="btn ghost" id="csv" style="width:100%">Tablo indir (.csv)</button></div>
-  <p class="meta">${flights.length.toLocaleString('tr-TR')} uçuş · ${notes.length} meydan notu · ${pilots.length.toLocaleString('tr-TR')} pilot kayıtlı.</p>`;
+  <p class="meta">${flights.length.toLocaleString('tr-TR')} uçuş · ${notes.length} meydan notu · ${pilots.length.toLocaleString('tr-TR')} pilot kayıtlı.</p>
+  <div class="appver"><div>Sürüm ${APP_VERSION}</div><div>Powered by ceryan</div></div>`;
   if(sync){$('#snow').onclick=async()=>{const r=await runSync();if(r.ok)toast(r.got||r.sent?`${r.got} kayıt alındı, ${r.sent} gönderildi`:'Her şey güncel');else if(r.error)toast(r.error)};
     const so=$('#soff');so.onclick=async()=>{if(!so.classList.contains('arm')){so.classList.add('arm');so.textContent='Emin misin? Kayıtlar bu cihazda kalır, sadece eşitleme durur';return}
       await disconnect();toast('Bağlantı kesildi');renderSettings()}}
