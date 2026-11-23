@@ -177,7 +177,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v26'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v28'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -745,15 +745,22 @@ function facesByLayout(img,n){
   const W0=img.naturalWidth,H0=img.naturalHeight,sc=300/W0,W=300,H=Math.round(H0*sc);
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d');g.drawImage(img,0,0,W,H);
   const d=g.getImageData(0,0,W,H).data,L=(x,y)=>{const k=(y*W+x)*4;return (d[k]+d[k+1]+d[k+2])/3};
-  const bx0=Math.round(W*.03),bx1=Math.round(W*.22),segs=[];let cur=null;
+  const xMax=Math.round(W*.45),gapMax=5,segs=[];let cur=null;
   for(let y=0;y<H;y++){const row=[];for(let x=0;x<W;x+=2)row.push(L(x,y));row.sort((a,b)=>a-b);const bg=row[row.length>>1]; /* satırın arka plan rengi: açık ya da koyu tema */
-    let nb=0,xs=W,xe=0;for(let x=bx0;x<bx1;x++)if(Math.abs(L(x,y)-bg)>35){nb++;if(x<xs)xs=x;if(x>xe)xe=x}
-    const on=nb/(bx1-bx0)>.2;
-    if(on){if(cur&&y-cur.y1<=2){cur.y1=y;cur.xs=Math.min(cur.xs,xs);cur.xe=Math.max(cur.xe,xe)}else{if(cur)segs.push(cur);cur={y0:y,y1:y,xs,xe}}}}
+    /* soldan ilk dolu bölge = fotoğraf; isimle arasındaki boşlukta durur */
+    let xa=-1,xb=-1,gap=0,ra=-1,rb=-1;const take=()=>{if(xa<0&&ra>=0&&rb-ra>=W*.03&&ra<W*.15){xa=ra;xb=rb}};  /* ince kenar çizgileri atlanır */
+    for(let x=0;x<xMax&&xa<0;x++){const on=Math.abs(L(x,y)-bg)>35;if(on){if(ra<0)ra=x;rb=x;gap=0}else if(ra>=0&&++gap>gapMax){take();ra=-1;gap=0}}take();
+    const on=xa>=0&&xb-xa<W*.35;
+    if(on){if(cur&&y-cur.y1<=2){cur.y1=y;cur.xs=Math.min(cur.xs,xa);cur.xe=Math.max(cur.xe,xb)}else{if(cur)segs.push(cur);cur={y0:y,y1:y,xs:xa,xe:xb}}}}
   if(cur)segs.push(cur);if(!segs.length)return [];
   const hh=s=>s.y1-s.y0+1,mx=Math.max(...segs.map(hh));
-  return segs.filter(s=>hh(s)>=.6*mx&&(s.xe-s.xs+1)<=2*hh(s)).slice(0,n).map(s=>{const D=Math.max(hh(s)/sc,W0*.13),cs=D*.74,cx=((s.xs+s.xe)/2)/sc-cs/2,cy=Math.max(0,s.y0/sc-D*.03);
-    const c2=document.createElement('canvas');c2.width=c2.height=120;c2.getContext('2d').drawImage(img,Math.max(0,cx),cy,cs,cs,0,0,120,120);return c2.toDataURL('image/jpeg',.85)})}
+  const fs=segs.filter(s=>hh(s)>=.6*mx&&(s.xe-s.xs+1)<=2*hh(s)).slice(0,n);if(!fs.length)return [];
+  const med=a=>{a=[...a].sort((p,q)=>p-q);return a[a.length>>1]};
+  /* fotoğraflar aynı sütunda ve aynı boyda: ortak merkez ve çap (beyaz zeminli fotoğrafta sadece kişinin silueti görünse de) */
+  const D=med(fs.map(s=>Math.max(hh(s),s.xe-s.xs+1))),cx=med(fs.map(s=>(s.xs+s.xe)/2));
+  return fs.map(s=>{const top=Math.min(s.y0-D*.03,s.y1+1-D),cs=D*.84;
+    const sx=Math.max(0,(cx-cs/2))/sc,sy=Math.max(0,top+D*.01)/sc,sz=cs/sc;
+    const c2=document.createElement('canvas');c2.width=c2.height=120;const g2=c2.getContext('2d');g2.fillStyle='#fff';g2.fillRect(0,0,120,120);g2.drawImage(img,sx,sy,sz,sz,0,0,120,120);return c2.toDataURL('image/jpeg',.85)})}
 async function cropFaces(file,lines,crew){
   const out={};if(!crew.length)return out;
   let img;try{img=await loadImg(file)}catch{return out}
@@ -843,6 +850,18 @@ function renderPilots(){
   const pq=$('#pq');pq.oninput=()=>{pilotQuery=pq.value;pilotShown=60;renderPilots();const e=$('#pq');e.focus();e.setSelectionRange(e.value.length,e.value.length)};
   draw();
 }
+/* Kişiyi telefon rehberine eklemek için kartvizit (.vcf) dosyası: isim, telefon, fotoğraf */
+function saveContact(p){
+  const esc2=s=>String(s||'').replace(/\\/g,'\\\\').replace(/[,;]/g,m=>'\\'+m).replace(/\r?\n/g,'\\n');
+  const name=titleTR(fold(p.name)==='self'?'':p.name)||p.name, parts=String(p.name).trim().split(/\s+/), last=parts.length>1?parts.pop():'', first=parts.join(' ');
+  const fold75=l=>{let o='';while(l.length>75){o+=l.slice(0,75)+'\r\n ';l=l.slice(75)}return o+l};
+  const L=['BEGIN:VCARD','VERSION:3.0','N:'+esc2(last)+';'+esc2(first)+';;;','FN:'+esc2(p.name),'TEL;TYPE=CELL:'+String(p.tel||'').replace(/[^\d+]/g,'')];
+  if(p.sicil)L.push('NOTE:'+esc2('Sicil '+sic0(p.sicil)));
+  const m=String(p.photo||'').match(/^data:image\/(jpe?g|png);base64,(.+)$/);if(m)L.push('PHOTO;ENCODING=b;TYPE='+(m[1]==='png'?'PNG':'JPEG')+':'+m[2]);
+  L.push('END:VCARD');
+  const blob=new Blob([L.map(fold75).join('\r\n')+'\r\n'],{type:'text/vcard'}),fn=(String(p.name).replace(/[^\wÇĞİÖŞÜçğıöşü ]+/g,'').trim()||'kisi')+'.vcf';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Kişi kartı indirildi ('+fn+'). Açınca rehbere ekleyebilirsin.')}
 function editPilot(id){
   view='editPilot';$('#fab').hidden=true;window.scrollTo(0,0);
   const ex=pilots.find(p=>p.id===id), p=ex?{...ex}:{id:newId('p'),name:'',sicil:'',note:''};
@@ -852,7 +871,7 @@ function editPilot(id){
   const k=low(p.name).trim(), fl=ex?flights.filter(f=>flightHasPilot(f,p)):[];
   const tot=fl.reduce((s,f)=>s+(f.blk||0),0);
   const telClean=String(p.tel||'').replace(/[^\d+]/g,'');
-  main.innerHTML=`<form id="pf">${ex&&(p.photo||p.tel)?`<div class="phead">${p.photo?`<img src="${p.photo}" alt="">`:''}<div class="pn"><b>${esc(p.name)}</b>${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a>`:''}</div></div>`:''}
+  main.innerHTML=`<form id="pf">${ex&&(p.photo||p.tel)?`<div class="phead">${p.photo?`<img src="${p.photo}" alt="">`:''}<div class="pn"><b>${esc(p.name)}</b>${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a><button class="btn ghost" type="button" id="vcf" style="padding:9px 14px">Rehbere kaydet</button>`:''}</div></div>`:''}
   <label>İsim<input id="p_name" value="${esc(p.name)}" required></label>
   <div class="f2"><label>Sicil no<input id="p_sicil" value="${esc(p.sicil)}" inputmode="numeric"></label><label>Telefon<input id="p_tel" type="tel" value="${esc(p.tel||'')}"></label></div>
   ${hideNote?`<label>Notlar<div class="card" style="margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px;text-transform:none;letter-spacing:0"><span class="mask">••••••••••••</span></div></label>`
@@ -861,6 +880,7 @@ function editPilot(id){
   ${ex?`<h2>Birlikte uçuşlar · ${fl.length} uçuş · <span class="num">${hm(tot)}</span></h2>
   <div class="list" id="pfl">${fl.map(f=>`<div class="row" data-id="${f.id}"><div class="route">${esc(f.dep||'---')} → ${esc(f.arr||'---')}</div><div class="blk">${hm(f.blk)}</div>
   <div class="sub">${[trDate(f.date),esc(f.flt),[esc(f.ac),esc(f.reg)].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div><div></div></div>`).join('')||'<div class="empty">Kayıtlı uçuş yok</div>'}</div>`:''}`;
+  {const vb=$('#vcf');if(vb)vb.onclick=()=>saveContact(ex)}
   document.querySelectorAll('#pfl .row').forEach(r=>r.onclick=()=>nav({v:'editFlight',id:r.dataset.id}));
   const pl=$('#plink');if(pl)pl.onclick=async()=>{if(!pl.classList.contains('arm')){pl.classList.add('arm');pl.textContent='Emin misin? Aynı isimli diğer kayıttan ayrılacaklar. Onay için tekrar dokun';return}
     const n=linkUnassigned(p);await save();toast(n+' uçuş bu pilota bağlandı');editPilot(id)};
