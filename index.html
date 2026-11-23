@@ -173,7 +173,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v24'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v25'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -987,7 +987,7 @@ function renderSettings(){
   await load();fillLists();
   const code=location.hash.startsWith('#kurulum=')?location.hash.slice(1):null;
   history.replaceState({v:'list'},'',location.pathname+location.search);render();setSync(sync?'ok':'off');
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
   $('#sync').onclick=async()=>{const r=await runSync();if(r.ok)toast(r.got||r.sent?`${r.got} kayıt alındı, ${r.sent} gönderildi`:'Her şey güncel');else if(r.error)toast(r.error)};
   window.addEventListener('online',()=>runSync());
   window.addEventListener('offline',()=>{if(sync&&!syncing)setSync('offline')});
