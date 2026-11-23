@@ -1,4 +1,4 @@
-const CACHE = 'logbook-v28';
+const CACHE = 'logbook-v29';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

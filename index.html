@@ -177,7 +177,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v28'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v29'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -758,8 +758,8 @@ function facesByLayout(img,n){
   const med=a=>{a=[...a].sort((p,q)=>p-q);return a[a.length>>1]};
   /* fotoğraflar aynı sütunda ve aynı boyda: ortak merkez ve çap (beyaz zeminli fotoğrafta sadece kişinin silueti görünse de) */
   const D=med(fs.map(s=>Math.max(hh(s),s.xe-s.xs+1))),cx=med(fs.map(s=>(s.xs+s.xe)/2));
-  return fs.map(s=>{const top=Math.min(s.y0-D*.03,s.y1+1-D),cs=D*.84;
-    const sx=Math.max(0,(cx-cs/2))/sc,sy=Math.max(0,top+D*.01)/sc,sz=cs/sc;
+  return fs.map(s=>{const top=s.y0-D*.07,cs=D*.84; /* başın tepesinden başla: çene kesilmesin */
+    const sx=Math.max(0,(cx-cs/2))/sc,sy=Math.max(0,top)/sc,sz=cs/sc;
     const c2=document.createElement('canvas');c2.width=c2.height=120;const g2=c2.getContext('2d');g2.fillStyle='#fff';g2.fillRect(0,0,120,120);g2.drawImage(img,sx,sy,sz,sz,0,0,120,120);return c2.toDataURL('image/jpeg',.85)})}
 async function cropFaces(file,lines,crew){
   const out={};if(!crew.length)return out;
