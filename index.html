@@ -23,7 +23,7 @@
   color-scheme:dark;
 }}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%}
+html{height:100%}body{margin:0;min-height:100%}
 body{background:var(--bg);color:var(--fg);font:15px/1.4 var(--sans);-webkit-tap-highlight-color:transparent}
 header{position:sticky;top:0;z-index:5;background:var(--accent);color:var(--accent-fg);
   padding:calc(env(safe-area-inset-top,0px) + 12px) max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));
@@ -62,6 +62,11 @@ nav button.on{color:var(--accent)}
 .phead b{font-size:18px}
 a.btn{display:inline-block;text-align:center;text-decoration:none}
 .scanbar{display:flex;gap:10px;align-items:center}
+.qbar{display:flex;gap:8px;align-items:stretch}.qbar .search{flex:1;min-width:0}
+.datebtn{position:relative;flex:none;width:46px;border:1px solid var(--line);border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg)}
+.datebtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;pointer-events:none}
+.datebtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;padding:0;border:0;min-height:0}
+.row.hit{background:var(--chip);transition:background .3s}
 .mtile{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
 .mright{display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:0}
 .mxl{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
@@ -407,14 +412,22 @@ async function unlockNotes(){
   for(let t=0;t<5;t++){const v=await pinDialog('PIN',sub);if(v==null)return false;if(await pinHash(v)===r.h){pinOK=true;return true}sub='PIN yanlış, tekrar dene.'}
   return false}
 async function toggleNotes(after){if(showNotes){showNotes=false;after();return}if(await unlockNotes()){showNotes=true;after()}}
-function go(v){view=v;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#fab').hidden=!(v==='list'||v==='notes'||v==='pilots');render();window.scrollTo(0,0)}
+let listScroll=null;
+function go(v){view=v;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('#fab').hidden=!(v==='list'||v==='notes'||v==='pilots');render();
+  if(v==='list'&&listScroll!=null){const y=listScroll;listScroll=null;window.scrollTo(0,y)}else window.scrollTo(0,0)}
 /* Android geri tuşu: her ekran tarayıcı geçmişine yazılır, geri tuşu bir önceki ekrana döner */
 function show(st){st=st||{v:'list'};if(st.v==='editFlight')editFlight(st.id);else if(st.v==='editPilot')editPilot(st.id);else if(st.v==='editNote')editNote(st.id);else if(st.v==='editPlane')editPlane(st.id);else go(TABS.includes(st.v)?st.v:'list')}
-function nav(st){history.pushState(st,'');show(st)}
+/* Geçmiş derinliği state.d: 0 = Uçuşlar listesi. Alttaki sekmeye basınca, detay sayfasında olsan bile tek basışta o sekmeye gidilir. */
+const depth=()=>(history.state&&history.state.d)||0;
+function nav(st){history.pushState({...st,d:depth()+1},'');show(st)}
 function back(){history.back()}
-window.addEventListener('popstate',e=>show(e.state));
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v===view)return;
-  if(view==='list')nav({v});else if(v==='list')back();else{history.replaceState({v},'');go(v)}});
+let pendingTab=null;
+window.addEventListener('popstate',e=>{if(pendingTab){const v=pendingTab;pendingTab=null;if(v!=='list'){history.replaceState({v,d:1},'');go(v);return}}show(e.state)});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(v===view)return;const d=depth();
+  if(v==='list'){if(d>0){listScroll=null;history.go(-d)}else go('list');return}
+  if(d===0){nav({v});return}
+  if(d===1){history.replaceState({v,d:1},'');go(v);return}
+  pendingTab=v;history.go(-(d-1))});
 $('#back').onclick=back;
 $('#fab').onclick=()=>nav({v:view==='notes'?'editNote':view==='pilots'?'editPilot':'editFlight',id:null});
 function render(){({list:renderList,stats:renderStats,pilots:renderPilots,planes:renderPlanes,notes:renderNotes,settings:renderSettings})[view]?.()}
@@ -424,11 +437,22 @@ function matches(f,q){return fold([f.date,trDate(f.date),f.flt,f.dep,f.arr,city(
 function renderList(){
   setHeader('Logbook');
   if(!flights.length){main.innerHTML=`<div class="empty"><p><b>Henüz uçuş yok.</b></p><p>Excel'den aktardığın kayıtları yüklemek için <b>Ayarlar → Yedek dosyasını yükle</b>'ye git, ya da + ile ilk uçuşunu ekle.</p></div>`;return}
-  main.innerHTML=`<input class="search" id="q" type="search" placeholder="Ara" value="${esc(query)}"><div class="meta" id="cnt"></div><div class="list" id="lst"></div><button class="more" id="more" hidden>Daha fazla göster</button>`;
+  main.innerHTML=`<div class="qbar"><input class="search" id="q" type="search" placeholder="Ara" value="${esc(query)}"><label class="datebtn" title="Tarihe git"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><input type="date" id="jd" aria-label="Tarihe git"></label></div><div class="meta" id="cnt"></div><div class="list" id="lst"></div><button class="more" id="more" hidden>Daha fazla göster</button>`;
   const q=$('#q');q.oninput=()=>{query=q.value;shown=60;drawRows()};
   $('#more').onclick=()=>{shown+=100;drawRows()};
+  const jd=$('#jd');jd.addEventListener('click',()=>{try{jd.showPicker()}catch{}});
+  jd.onchange=()=>{if(jd.value)jumpTo(jd.value)};
   drawRows();
 }
+/* Seçilen tarihe atla: o gün (yoksa ondan önceki en yakın uçuş) üstte görünür */
+function jumpTo(d){
+  if(query){query='';$('#q').value=''}
+  const i=flights.findIndex(f=>f.date<=d);if(i<0){toast(trDate(d)+' ve öncesinde uçuş yok');return}
+  shown=Math.max(shown,i+40);drawRows();
+  const row=$('#lst').querySelector(`.row[data-id="${CSS.escape(flights[i].id)}"]`);if(!row)return;
+  const top=row.getBoundingClientRect().top+window.scrollY-(document.querySelector('header').offsetHeight+8);window.scrollTo(0,top);
+  row.classList.add('hit');setTimeout(()=>row.classList.remove('hit'),1800);
+  if(flights[i].date!==d)toast(trDate(d)+' tarihinde uçuş yok; önceki uçuş gösteriliyor')}
 function drawRows(){
   const q=fold(query), rows=q?flights.filter(f=>matches(f,q)):flights;
   const sum=rows.reduce((s,f)=>s+(f.blk||0),0), ns=rows.filter(f=>f.sim).length;
@@ -438,7 +462,7 @@ function drawRows(){
     <div class="sub">${[trDate(f.date),esc(f.flt),[esc(f.ac),esc(f.reg)].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div>
     <div class="badges">${f.sim?'<span class="chip sim">SIM</span>':f.pf==='SELF'?'<span class="chip cpt">PF</span>':''}${f.rem&&f.rem.trim()?'<span class="ndot" title="Bu uçuşta not var"></span>':''}</div></div>`).join('')||'<div class="empty">Sonuç yok</div>';
   $('#more').hidden=rows.length<=shown;
-  document.querySelectorAll('#lst .row').forEach(r=>r.onclick=()=>nav({v:'editFlight',id:r.dataset.id}));
+  document.querySelectorAll('#lst .row').forEach(r=>r.onclick=()=>{listScroll=window.scrollY;nav({v:'editFlight',id:r.dataset.id})});
 }
 
 /* ---------- Uçuş ekle / düzenle ---------- */
@@ -807,8 +831,11 @@ function editPilot(id){
     const n=linkUnassigned(p);await save();toast(n+' uçuş bu pilota bağlandı');editPilot(id)};
   if(ex){const d=$('#pdel');d.onclick=async()=>{if(!d.classList.contains('arm')){d.classList.add('arm');d.textContent='Emin misin? Silmek için tekrar dokun';return}
     pilots=pilots.filter(x=>x.id!==p.id);mark('p',p.id);await save();toast('Pilot silindi');back()}}
-  $('#pf').onsubmit=async e=>{e.preventDefault();p.name=$('#p_name').value.trim();p.sicil=$('#p_sicil').value.trim();p.tel=$('#p_tel').value.trim();if($('#p_note'))p.note=$('#p_note').value.trim();
-    mark('p',p.id,p);pilots=pilots.filter(x=>x.id!==p.id);pilots.push(p);await save();fillLists();toast('Kaydedildi');back()};
+  $('#pf').onsubmit=async e=>{e.preventDefault();
+    const cur=ex?(pilots.find(x=>x.id===p.id)||p):p, nv={name:$('#p_name').value.trim(),sicil:$('#p_sicil').value.trim(),tel:$('#p_tel').value.trim()};if($('#p_note'))nv.note=$('#p_note').value.trim();
+    const changed=!ex||Object.keys(nv).some(k=>String(cur[k]||'')!==nv[k]);
+    if(changed){Object.assign(cur,nv);if(!pilots.includes(cur))pilots.push(cur);mark('p',cur.id,cur);await save();fillLists()} /* değişmeyen kayıt gönderilmez: başka cihazdaki fotoğrafın üstüne yazmaz */
+    toast(changed?'Kaydedildi':'Değişiklik yok');back()};
 }
 
 /* Cockpit rehber dosyası: var data=[{i:'sicil',n:'AD',p:'+90…',u:'rütbe'},…]; var img={"sicil":"base64",…} */
