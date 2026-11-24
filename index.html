@@ -188,7 +188,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v35'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v36'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -271,7 +271,16 @@ function linkUnassigned(p){const k=fold(p.name);let n=0;
 function unassignedCount(p){const k=fold(p.name);let n=0;for(const f of flights)if(SLOTS.some(s=>fold(f[s])===k&&!(f.pid&&f.pid[s])))n++;return n}
 /* Bir kerelik temizlik (her cihazda bir kez): eski otomatik Ali Fuat düzeltmesinin bıraktığı 93426 kaydı.
    O düzeltme kaldırıldı; 93426 artık kendiliğinden oluşmaz. Uçuşları ve fotoğrafı 71187'ye geri verilir. */
-async function runFixes(){
+async function runFixes(){const a=await fixSim1115(),b=await fixAF();return a||b}
+/* Bir kerelik: 6 Kasım 2015 NUE–ISL kaydı simülatör (B737-800, TC-ZZZ, 4:00) */
+async function fixSim1115(){
+  try{if(localStorage.getItem('fixSIM1115'))return false}catch{}
+  const done=()=>{try{localStorage.setItem('fixSIM1115','1')}catch{}};
+  const f=flights.find(x=>x.date==='2015-11-06'&&x.dep==='NUE'&&x.arr==='ISL');
+  if(!f){if(flights.length)done();return false}
+  if(!f.sim){f.sim=true;f.simt=240;f.ac='B737-800';f.reg='TC-ZZZ';f.flt='';f.pf='';f.blk=0;mark('f',f.id,f);await save();done();return true}
+  done();return false}
+async function fixAF(){
   try{if(localStorage.getItem('fixAF2'))return false}catch{}
   let ch=false;const done=()=>{try{localStorage.setItem('fixAF2','1')}catch{}};
   const old=pilots.find(p=>sic0(p.sicil)==='71187'&&fold(p.name)==='ali fuat yildirim');
