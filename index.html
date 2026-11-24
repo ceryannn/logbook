@@ -186,7 +186,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v32'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v33'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -262,22 +262,27 @@ function applyRemote(changes){
     else{arr.push(rec);idx[k].set(id,arr.length-1);n++}}
   for(const k in del)if(del[k].size)setArr(k,KINDS[k]().filter(r=>!del[k].has(r.id)));
   return n}
-async function fixAliFuat(){
-  if(pilots.some(p=>sic0(p.sicil)==='93426'))return false;
-  const old=pilots.find(p=>fold(p.name)==='ali fuat yildirim'&&sic0(p.sicil)==='71187');if(!old||!old.photo)return false;
-  const nw={id:'p-sic-93426',name:old.name,sicil:'93426',note:'',photo:old.photo};old.photo='';mark('p',old.id,old);pilots.push(nw);mark('p',nw.id,nw);
-  const f=flights.find(x=>!x.sim&&SLOTS.some(s=>fold(x[s])==='ali fuat yildirim'));
-  if(f){const s=SLOTS.find(s=>fold(f[s])==='ali fuat yildirim');f.pid={...(f.pid||{}),[s]:nw.id};mark('f',f.id,f)}
-  await save();return true}
 /* Bir isimdeki, hiçbir kayda bağlı olmayan eski uçuşları verilen pilota bağlar */
 function linkUnassigned(p){const k=fold(p.name);let n=0;
   for(const f of flights)for(const s of SLOTS){if(fold(f[s])!==k||(f.pid&&f.pid[s]))continue;f.pid={...(f.pid||{}),[s]:p.id};mark('f',f.id,f);n++}
   return n}
 function unassignedCount(p){const k=fold(p.name);let n=0;for(const f of flights)if(SLOTS.some(s=>fold(f[s])===k&&!(f.pid&&f.pid[s])))n++;return n}
-async function runFixes(){let ch=await fixAliFuat();
+/* Bir kerelik temizlik (her cihazda bir kez): eski otomatik Ali Fuat düzeltmesinin bıraktığı 93426 kaydı.
+   O düzeltme kaldırıldı; 93426 artık kendiliğinden oluşmaz. Uçuşları ve fotoğrafı 71187'ye geri verilir. */
+async function runFixes(){
+  try{if(localStorage.getItem('fixAF2'))return false}catch{}
+  let ch=false;const done=()=>{try{localStorage.setItem('fixAF2','1')}catch{}};
   const old=pilots.find(p=>sic0(p.sicil)==='71187'&&fold(p.name)==='ali fuat yildirim');
-  if(old&&pilots.some(p=>sic0(p.sicil)==='93426')&&linkUnassigned(old)){await save();ch=true}  /* eski Ali Fuat uçuşları 71187'ye */
-  return ch}
+  const af=pilots.find(p=>sic0(p.sicil)==='93426'&&fold(p.name)==='ali fuat yildirim');
+  if(!old){done();return false}
+  if(af){
+    for(const f of flights){if(!f.pid||!(f.date<'2026-11-24'))continue;let m=false;
+      for(const s of SLOTS)if(f.pid[s]===af.id){f.pid={...f.pid,[s]:old.id};m=true}
+      if(m){mark('f',f.id,f);ch=true}}
+    if(af.photo&&!old.photo){old.photo=af.photo;mark('p',old.id,old);ch=true}
+    if(!flights.some(f=>f.pid&&SLOTS.some(s=>f.pid[s]===af.id))){pilots=pilots.filter(p=>p!==af);mark('p',af.id);ch=true}}
+  if(linkUnassigned(old))ch=true;
+  if(ch)await save();done();return ch}
 function refresh(){if(cleanupDupes()){saveData();scheduleSync()}sortF();fillLists();const t=document.activeElement?.tagName;if(TABS.includes(view)&&t!=='INPUT'&&t!=='TEXTAREA')render()}
 async function runSync(){
   if(!sync)return {ok:false};
