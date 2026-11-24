@@ -59,6 +59,15 @@ nav button.on{color:var(--accent)}
 .phead{display:flex;gap:14px;align-items:center;margin-bottom:4px}
 .phead img{width:96px;height:120px;border-radius:12px;object-fit:cover;background:var(--chip);flex:none}
 .phead .pn{display:flex;flex-direction:column;gap:6px;min-width:0}
+.crop{position:fixed;inset:0;z-index:40;background:rgba(4,10,20,.75);display:flex;align-items:center;justify-content:center;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.crop-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px;box-shadow:0 14px 40px rgba(0,0,0,.4)}
+.crop-t{font-weight:700;font-size:16px}.crop-h{font-size:13px;color:var(--mute);margin-top:-6px}
+.crop-stage{position:relative;align-self:center;overflow:hidden;touch-action:none;border-radius:6px;background:#fff;cursor:crosshair}
+.crop-stage canvas{display:block}
+.crop-f{position:absolute;border:2px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move;touch-action:none}
+.crop-f::after{content:'';position:absolute;inset:0;border-radius:50%;border:1.5px dashed rgba(255,255,255,.85)}
+.crop-z{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mute)}.crop-z input{flex:1;accent-color:var(--accent)}
+.crop-b{display:flex;gap:10px}.crop-b .btn{flex:1}
 .phead b{font-size:18px}
 a.btn{display:inline-block;text-align:center;text-decoration:none}
 .scanbar{display:flex;gap:10px;align-items:center}
@@ -177,7 +186,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v31'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v32'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -324,7 +333,7 @@ function isoToday(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMon
 function isoMinus(days){const d=new Date();d.setDate(d.getDate()-days);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 const low=s=>String(s||'').toLocaleLowerCase('tr');
 /* Kısa onaylar kendiliğinden kaybolur; sonuç ve uyarı mesajları Tamam'a basılana kadar durur */
-const TOAST_AUTO=/^(Kaydedildi|Uçuş silindi|Pilot silindi|Not silindi|PIN kaydedildi|Değişiklik yok|Bağlantı kesildi|Her şey güncel|Bu cihaz zaten bağlı|\d+:\d\d \S+ eklendi)$/;
+const TOAST_AUTO=/^(Kaydedildi|Uçuş silindi|Pilot silindi|Not silindi|PIN kaydedildi|Değişiklik yok|Bağlantı kesildi|Her şey güncel|Bu cihaz zaten bağlı|Fotoğraf kaydedildi|\d+:\d\d \S+ eklendi)$/;
 function toast(t,ms){const e=$('#toast');clearTimeout(e._t);e.innerHTML='';const s=document.createElement('span');s.textContent=t;e.append(s);
   const hide=()=>{clearTimeout(e._t);e.classList.remove('show')};
   if(TOAST_AUTO.test(t))e._t=setTimeout(hide,ms||2200);
@@ -760,7 +769,7 @@ function facesByLayout(img,n){
   const D=med(fs.map(s=>Math.max(hh(s),s.xe-s.xs+1))),cx=med(fs.map(s=>(s.xs+s.xe)/2));
   return fs.map(s=>{const top=s.y0-D*.07,cs=D*.84; /* başın tepesinden başla: çene kesilmesin */
     const sx=Math.max(0,(cx-cs/2))/sc,sy=Math.max(0,top)/sc,sz=cs/sc;
-    const c2=document.createElement('canvas');c2.width=c2.height=120;const g2=c2.getContext('2d');g2.fillStyle='#fff';g2.fillRect(0,0,120,120);g2.drawImage(img,sx,sy,sz,sz,0,0,120,120);return {url:c2.toDataURL('image/jpeg',.85),y0:s.y0/sc,y1:s.y1/sc}})}
+    const c2=document.createElement('canvas');c2.width=c2.height=120;const g2=c2.getContext('2d');g2.fillStyle='#fff';g2.fillRect(0,0,120,120);g2.drawImage(img,sx,sy,sz,sz,0,0,120,120);return {url:c2.toDataURL('image/jpeg',.85),y0:s.y0/sc,y1:s.y1/sc,sx,sy,sz}})}
 async function cropFaces(file,lines,crew){
   const out={};if(!crew.length)return out;
   let img;try{img=await loadImg(file)}catch{return out}
@@ -872,6 +881,42 @@ function saveContact(p){
   const blob=new Blob([L.map(fold75).join('\r\n')+'\r\n'],{type:'text/vcard'}),fn=(String(p.name).replace(/[^\wÇĞİÖŞÜçğıöşü ]+/g,'').trim()||'kisi')+'.vcf';
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   toast('Kişi kartı indirildi ('+fn+'). Açınca rehbere ekleyebilirsin.')}
+/* Pilot sayfasındaki "Resim kaydet": yüklenen resimde fotoğrafı bulur, kullanıcı çerçeveyi ayarlar */
+async function photoFromImage(file){
+  let img;try{img=await loadImg(file)}catch{toast('Resim açılamadı');return null}
+  const W=img.naturalWidth,H=img.naturalHeight,m=Math.min(W,H);let init=null;
+  if(H<=W*1.2)try{const f=facesByLayout(img,0)[0];if(f)init={x:f.sx,y:f.sy,s:f.sz}}catch{} /* yatay şerit: soldaki yuvarlak fotoğraf */
+  if(!init){const s=m*(H>W*1.2?.78:.9);init={x:(W-s)/2,y:H>W*1.2?Math.min(H-s,H*.05):(H-s)/2,s}} /* rehber kartı gibi dik resim: üst kısım */
+  return cropDialog(img,init)}
+function cropDialog(img,init){return new Promise(done=>{
+  const W=img.naturalWidth,H=img.naturalHeight;
+  let {x,y,s}=init;
+  /* çok geniş resimde sadece fotoğrafın çevresi büyük gösterilir */
+  const VW=Math.min(W,Math.max(H*1.8,s*2.5)),vx=Math.max(0,Math.min(W-VW,x+s/2-VW/2)),smin=Math.min(VW,H)*.08,smax=Math.min(VW,H);
+  s=Math.max(smin,Math.min(smax,s));
+  const ov=document.createElement('div');ov.className='crop';
+  ov.innerHTML=`<div class="crop-box" role="dialog" aria-label="Fotoğrafı seç"><div class="crop-t">Fotoğrafı çerçeveye al</div><div class="crop-h">Çerçeveyi sürükle, boyutunu alttan ayarla. Resme dokunursan çerçeve oraya gelir.</div>
+    <div class="crop-stage"><canvas></canvas><div class="crop-f"></div></div>
+    <div class="crop-z"><span>Küçük</span><input type="range" min="0" max="1000" aria-label="Çerçeve boyutu"><span>Büyük</span></div>
+    <div class="crop-b"><button class="btn ghost" type="button" data-a="0">Vazgeç</button><button class="btn" type="button" data-a="1">Kaydet</button></div></div>`;
+  document.body.append(ov);
+  const st=ov.querySelector('.crop-stage'),cv=st.querySelector('canvas'),fr=st.querySelector('.crop-f'),rg=ov.querySelector('input[type=range]');
+  const k=Math.min((ov.querySelector('.crop-box').clientWidth-28)/VW,innerHeight*.55/H);
+  cv.width=Math.round(VW*k);cv.height=Math.round(H*k);cv.getContext('2d').drawImage(img,vx,0,VW,H,0,0,cv.width,cv.height);
+  const clamp=()=>{s=Math.max(smin,Math.min(smax,s));x=Math.max(vx,Math.min(vx+VW-s,x));y=Math.max(0,Math.min(H-s,y))};
+  const draw=()=>{clamp();Object.assign(fr.style,{left:(x-vx)*k+'px',top:y*k+'px',width:s*k+'px',height:s*k+'px'})};
+  rg.value=Math.round((s-smin)/(smax-smin||1)*1000);
+  rg.oninput=()=>{const cx=x+s/2,cy=y+s/2;s=smin+(smax-smin)*rg.value/1000;x=cx-s/2;y=cy-s/2;draw()};
+  let drag=null;
+  fr.onpointerdown=e=>{e.preventDefault();e.stopPropagation();fr.setPointerCapture(e.pointerId);drag={px:e.clientX,py:e.clientY,x,y}};
+  fr.onpointermove=e=>{if(!drag)return;x=drag.x+(e.clientX-drag.px)/k;y=drag.y+(e.clientY-drag.py)/k;draw()};
+  fr.onpointerup=fr.onpointercancel=()=>drag=null;
+  st.onpointerdown=e=>{if(e.target===fr)return;const r=st.getBoundingClientRect();x=vx+(e.clientX-r.left)/k-s/2;y=(e.clientY-r.top)/k-s/2;draw()};
+  const close=v=>{removeEventListener('popstate',onPop);ov.remove();done(v)},onPop=()=>close(null);
+  addEventListener('popstate',onPop);
+  ov.querySelectorAll('.crop-b button').forEach(b=>b.onclick=()=>{if(b.dataset.a!=='1')return close(null);
+    const c=document.createElement('canvas');c.width=c.height=160;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,160,160);g.drawImage(img,x,y,s,s,0,0,160,160);close(c.toDataURL('image/jpeg',.88))});
+  draw()})}
 function editPilot(id){
   view='editPilot';$('#fab').hidden=true;window.scrollTo(0,0);
   const ex=pilots.find(p=>p.id===id), p=ex?{...ex}:{id:newId('p'),name:'',sicil:'',note:''};
@@ -881,7 +926,7 @@ function editPilot(id){
   const k=low(p.name).trim(), fl=ex?flights.filter(f=>flightHasPilot(f,p)):[];
   const tot=fl.reduce((s,f)=>s+(f.blk||0),0);
   const telClean=String(p.tel||'').replace(/[^\d+]/g,'');
-  main.innerHTML=`<form id="pf">${ex&&(p.photo||p.tel)?`<div class="phead">${p.photo?`<img src="${p.photo}" alt="">`:''}<div class="pn"><b>${esc(p.name)}</b>${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a><button class="btn ghost" type="button" id="vcf" style="padding:9px 14px">Rehbere kaydet</button>`:''}</div></div>`:''}
+  main.innerHTML=`<form id="pf">${ex?`<div class="phead">${p.photo?`<img src="${p.photo}" alt="" id="pimg">`:''}<div class="pn"><b>${esc(p.name)}</b>${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a><button class="btn ghost" type="button" id="vcf" style="padding:9px 14px">Rehbere kaydet</button>`:''}<button class="btn ghost" type="button" id="pphoto" style="padding:9px 14px">Resim kaydet</button><input type="file" id="pphotof" accept="image/*" hidden></div></div>`:''}
   <label>İsim<input id="p_name" value="${esc(p.name)}" required></label>
   <div class="f2"><label>Sicil no<input id="p_sicil" value="${esc(p.sicil)}" inputmode="numeric"></label><label>Telefon<input id="p_tel" type="tel" value="${esc(p.tel||'')}"></label></div>
   ${hideNote?`<label>Notlar<div class="card" style="margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px;text-transform:none;letter-spacing:0"><span class="mask">••••••••••••</span></div></label>`
@@ -891,6 +936,10 @@ function editPilot(id){
   <div class="list" id="pfl">${fl.map(f=>`<div class="row" data-id="${f.id}"><div class="route">${esc(f.dep||'---')} → ${esc(f.arr||'---')}</div><div class="blk">${hm(f.blk)}</div>
   <div class="sub">${[trDate(f.date),esc(f.flt),[esc(f.ac),esc(f.reg)].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</div><div></div></div>`).join('')||'<div class="empty">Kayıtlı uçuş yok</div>'}</div>`:''}`;
   {const vb=$('#vcf');if(vb)vb.onclick=()=>saveContact(ex)}
+  {const pb=$('#pphoto'),pi=$('#pphotof');if(pb){pb.onclick=()=>pi.click();pi.onchange=async()=>{const f=pi.files[0];pi.value='';if(!f)return;
+    const url=await photoFromImage(f);if(!url)return;const cur=pilots.find(x=>x.id===p.id);if(!cur)return;
+    cur.photo=url;mark('p',cur.id,cur);await save();
+    let im=$('#pimg');if(!im){im=document.createElement('img');im.id='pimg';im.alt='';$('.phead').prepend(im)}im.src=url;toast('Fotoğraf kaydedildi')}}}
   document.querySelectorAll('#pfl .row').forEach(r=>r.onclick=()=>nav({v:'editFlight',id:r.dataset.id}));
   const pl=$('#plink');if(pl)pl.onclick=async()=>{if(!pl.classList.contains('arm')){pl.classList.add('arm');pl.textContent='Emin misin? Aynı isimli diğer kayıttan ayrılacaklar. Onay için tekrar dokun';return}
     const n=linkUnassigned(p);await save();toast(n+' uçuş bu pilota bağlandı');editPilot(id)};
