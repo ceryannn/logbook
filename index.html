@@ -56,9 +56,10 @@ nav button.on{color:var(--accent)}
 .prow{grid-template-columns:44px minmax(0,1fr) auto}
 .prow .av{grid-row:span 2;align-self:center}
 .av{width:44px;height:44px;border-radius:50%;object-fit:cover;object-position:center 20%;background:var(--chip);display:flex;align-items:center;justify-content:center;font:700 15px var(--sans);color:var(--mute)}
-.phead{display:flex;gap:14px;align-items:center;margin-bottom:4px}
+.phead{display:flex;flex-direction:column;gap:12px;margin-bottom:6px}
+.phead .pbody{display:flex;gap:22px;align-items:center}
 .phead img{width:96px;height:120px;border-radius:12px;object-fit:cover;background:var(--chip);flex:none}
-.phead .pn{display:flex;flex-direction:column;gap:6px;min-width:0}
+.phead .pn{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1;max-width:300px}
 .crop{position:fixed;inset:0;z-index:40;background:rgba(4,10,20,.75);display:flex;align-items:center;justify-content:center;padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
 .crop-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px;box-shadow:0 14px 40px rgba(0,0,0,.4)}
 .crop-t{font-weight:700;font-size:16px}.crop-h{font-size:13px;color:var(--mute);margin-top:-6px}
@@ -186,7 +187,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 <datalist id="dlAc"></datalist><datalist id="dlReg"></datalist><datalist id="dlPil"></datalist><datalist id="dlApt"></datalist>
 
 <script>
-const APP_VERSION='v33'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
+const APP_VERSION='v34'; /* her yeni sürümde güncellenir (sw.js içindeki CACHE adıyla aynı) */
 /* ---------- Depolama (IndexedDB) ---------- */
 const DBN='logbook', ST='kv';
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -931,7 +932,7 @@ function editPilot(id){
   const k=low(p.name).trim(), fl=ex?flights.filter(f=>flightHasPilot(f,p)):[];
   const tot=fl.reduce((s,f)=>s+(f.blk||0),0);
   const telClean=String(p.tel||'').replace(/[^\d+]/g,'');
-  main.innerHTML=`<form id="pf">${ex?`<div class="phead">${p.photo?`<img src="${p.photo}" alt="" id="pimg">`:''}<div class="pn"><b>${esc(p.name)}</b>${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a><button class="btn ghost" type="button" id="vcf" style="padding:9px 14px">Rehbere kaydet</button>`:''}<button class="btn ghost" type="button" id="pphoto" style="padding:9px 14px">Resim kaydet</button><input type="file" id="pphotof" accept="image/*" hidden></div></div>`:''}
+  main.innerHTML=`<form id="pf">${ex?`<div class="phead"><b>${esc(p.name)}</b><div class="pbody">${p.photo?`<img src="${p.photo}" alt="" id="pimg">`:''}<div class="pn">${p.tel?`<a class="btn ghost" href="tel:${esc(telClean)}" style="padding:9px 14px">Ara · ${esc(p.tel)}</a><button class="btn ghost" type="button" id="vcf" style="padding:9px 14px">Rehbere kaydet</button>`:''}<button class="btn ghost" type="button" id="pphoto" style="padding:9px 14px">Resim kaydet</button><input type="file" id="pphotof" accept="image/*" hidden></div></div></div>`:''}
   <label>İsim<input id="p_name" value="${esc(p.name)}" required></label>
   <div class="f2"><label>Sicil no<input id="p_sicil" value="${esc(p.sicil)}" inputmode="numeric"></label><label>Telefon<input id="p_tel" type="tel" value="${esc(p.tel||'')}"></label></div>
   ${hideNote?`<label>Notlar<div class="card" style="margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px;text-transform:none;letter-spacing:0"><span class="mask">••••••••••••</span></div></label>`
@@ -944,7 +945,7 @@ function editPilot(id){
   {const pb=$('#pphoto'),pi=$('#pphotof');if(pb){pb.onclick=()=>pi.click();pi.onchange=async()=>{const f=pi.files[0];pi.value='';if(!f)return;
     const url=await photoFromImage(f);if(!url)return;const cur=pilots.find(x=>x.id===p.id);if(!cur)return;
     cur.photo=url;mark('p',cur.id,cur);await save();
-    let im=$('#pimg');if(!im){im=document.createElement('img');im.id='pimg';im.alt='';$('.phead').prepend(im)}im.src=url;toast('Fotoğraf kaydedildi')}}}
+    let im=$('#pimg');if(!im){im=document.createElement('img');im.id='pimg';im.alt='';$('.phead .pbody').prepend(im)}im.src=url;toast('Fotoğraf kaydedildi')}}}
   document.querySelectorAll('#pfl .row').forEach(r=>r.onclick=()=>nav({v:'editFlight',id:r.dataset.id}));
   const pl=$('#plink');if(pl)pl.onclick=async()=>{if(!pl.classList.contains('arm')){pl.classList.add('arm');pl.textContent='Emin misin? Aynı isimli diğer kayıttan ayrılacaklar. Onay için tekrar dokun';return}
     const n=linkUnassigned(p);await save();toast(n+' uçuş bu pilota bağlandı');editPilot(id)};
